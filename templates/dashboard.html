@@ -1,0 +1,738 @@
+{% extends "base.html" %}
+{% block title %}Cuaderno de Pedidos — Sierra Diseños y Bordados{% endblock %}
+
+{% block content %}
+{% macro mostrar_adjunto(url, etiqueta, alt_texto) %}
+  {% if url %}
+  <div class="d-flex align-items-center gap-2 mt-2">
+    {% if url.lower().endswith('.pdf') %}
+      <a href="{{ url }}" target="_blank" rel="noopener" class="btn btn-outline-danger btn-sm fw-semibold">
+        <i class="bi bi-file-earmark-pdf-fill me-1"></i>{{ etiqueta }} (PDF)
+      </a>
+    {% else %}
+      <a href="{{ url }}" target="_blank" rel="noopener">
+        <img src="{{ url }}" alt="{{ alt_texto }}" class="img-thumbnail" style="max-height: 58px;">
+      </a>
+      <a href="{{ url }}" target="_blank" rel="noopener" class="small fw-semibold text-primary text-decoration-none">
+        <i class="bi bi-zoom-in me-1"></i>{{ etiqueta }}
+      </a>
+    {% endif %}
+  </div>
+  {% endif %}
+{% endmacro %}
+
+<!-- Aviso simple si algún hilo se está acabando -->
+{% if alertas_insumos %}
+<div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4" role="alert">
+  <div>
+    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+    <strong>Hilos por agotarse en bodega:</strong>
+    {% for item in alertas_insumos %}
+      <span class="badge bg-danger ms-1">
+        {% if item.codigo_referencia %}{{ item.codigo_referencia }} — {% endif %}{{ item.nombre_color }}: quedan {{ item.stock_actual }}
+      </span>
+    {% endfor %}
+  </div>
+  <a href="{{ url_for('vista_insumos') }}" class="btn btn-sm btn-outline-dark fw-semibold">Ir al Inventario de Hilos</a>
+</div>
+{% endif %}
+
+<!-- Encabezado simple: Título + Buscador por Cédula + Botón Anotar Pedido -->
+<div class="clean-card p-3 p-md-4 mb-4">
+  <div class="row g-3 align-items-center">
+    <div class="col-12 col-lg-4">
+      <h1 class="h4 fw-bold mb-0">Cuaderno Digital de Pedidos</h1>
+      <p class="text-muted small mb-0">
+        Activos: <strong>{{ metricas.total_activos }}</strong> |
+        En máquina: <strong>{{ metricas.en_proceso }}</strong> |
+        Listos: <strong>{{ metricas.listos_despacho }}</strong>
+      </p>
+    </div>
+
+    <div class="col-12 col-lg-5">
+      <search>
+        <form action="{{ url_for('dashboard') }}" method="GET" class="d-flex gap-2">
+          <label for="search-cedula" class="visually-hidden">Buscar por Cédula, NIT o Nombre</label>
+          <input
+            type="search"
+            id="search-cedula"
+            name="cedula"
+            value="{{ q_cedula }}"
+            class="form-control"
+            autocorrect="off"
+            autocapitalize="none"
+            spellcheck="false"
+            enterkeyhint="search"
+          >
+          {% if filtro_estado %}
+          <input type="hidden" name="estado" value="{{ filtro_estado }}">
+          {% endif %}
+          <button type="submit" class="btn btn-outline-primary fw-semibold px-3 flex-shrink-0">Buscar Cédula</button>
+          {% if q_cedula or filtro_estado %}
+          <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary flex-shrink-0">Todos</a>
+          {% endif %}
+        </form>
+      </search>
+    </div>
+
+    <div class="col-12 col-lg-3 text-lg-end">
+      {% if session.get('rol') == 'admin' %}
+      <button type="button" class="btn btn-primary fw-bold w-100 py-2" data-bs-toggle="modal" data-bs-target="#modalNuevoPedido">
+        <i class="bi bi-plus-lg me-1"></i>Anotar Nuevo Pedido
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Pestañas rápidas por estado -->
+  <div class="d-flex flex-wrap gap-2 mt-3 pt-3 border-top">
+    <a href="{{ url_for('dashboard', cedula=q_cedula) }}" class="btn btn-sm {% if not filtro_estado %}btn-dark{% else %}btn-outline-secondary{% endif %}">
+      Todos
+    </a>
+    <a href="{{ url_for('dashboard', estado='Cotización', cedula=q_cedula) }}" class="btn btn-sm {% if filtro_estado == 'Cotización' %}btn-info text-dark fw-bold{% else %}btn-outline-secondary{% endif %}">
+      Cotizaciones Web{% if metricas.cotizaciones %} <span class="badge bg-dark ms-1">{{ metricas.cotizaciones }}</span>{% endif %}
+    </a>
+    <a href="{{ url_for('dashboard', estado='Pendiente', cedula=q_cedula) }}" class="btn btn-sm {% if filtro_estado == 'Pendiente' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+      Pendientes{% if metricas.pendientes %} <span class="badge bg-dark ms-1">{{ metricas.pendientes }}</span>{% endif %}
+    </a>
+    <a href="{{ url_for('dashboard', estado='En Proceso', cedula=q_cedula) }}" class="btn btn-sm {% if filtro_estado == 'En Proceso' %}btn-warning text-dark fw-bold{% else %}btn-outline-secondary{% endif %}">
+      En Máquina{% if metricas.en_proceso %} <span class="badge bg-dark ms-1">{{ metricas.en_proceso }}</span>{% endif %}
+    </a>
+    <a href="{{ url_for('dashboard', estado='Listo', cedula=q_cedula) }}" class="btn btn-sm {% if filtro_estado == 'Listo' %}btn-success{% else %}btn-outline-secondary{% endif %}">
+      Listos{% if metricas.listos_despacho %} <span class="badge bg-dark ms-1">{{ metricas.listos_despacho }}</span>{% endif %}
+    </a>
+    <a href="{{ url_for('dashboard', estado='Entregado', cedula=q_cedula) }}" class="btn btn-sm {% if filtro_estado == 'Entregado' %}btn-dark{% else %}btn-outline-secondary{% endif %}">
+      Entregados
+    </a>
+  </div>
+
+  <!-- Si se buscó una cédula y existe el cliente, mostrar sus hilos guardados -->
+  {% if cliente_encontrado %}
+  <div class="mt-3 p-3 bg-light border rounded-3 small">
+    <strong>Cliente encontrado:</strong> {{ cliente_encontrado.nombre }} (Cédula/NIT: {{ cliente_encontrado.cedula }} — Tel: {{ cliente_encontrado.telefono }})<br>
+    <strong>Hilos que usa siempre este cliente:</strong> <span class="text-primary fw-semibold">{{ cliente_encontrado.hilos_corporativos or 'No registrados' }}</span>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Tabla Limpia de Pedidos -->
+<div tabindex="0" role="region" aria-labelledby="pedidos-table-caption" class="table-wrapper">
+  <table style="--label-2: 'Cliente'; --label-3: 'Trabajo'; --label-4: 'Hilos y Boceto'; --label-5: 'Estado'; --label-6: 'Acción';">
+    <caption id="pedidos-table-caption" class="visually-hidden">Lista de pedidos del taller</caption>
+    <thead>
+      <tr>
+        <th scope="col">N.º</th>
+        <th scope="col">Cliente y Cédula/NIT</th>
+        <th scope="col">Trabajo y Cantidad</th>
+        <th scope="col" style="min-width: 310px;">Qué bordar, Hilos, Acuerdo y Pruebas</th>
+        <th scope="col">Estado</th>
+        <th scope="col">Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in pedidos %}
+      <tr>
+        <th scope="row">#{{ p.id }}</th>
+        <td>
+          <div class="fw-bold">{{ p.cliente_nombre }}</div>
+          <div class="small text-muted">Cédula/NIT: <strong>{{ p.cedula }}</strong></div>
+          <div class="small text-muted">Tel: {{ p.cliente_telefono }}</div>
+        </td>
+        <td>
+          <div class="fw-semibold">{{ p.tipo_servicio }}</div>
+          <div class="small text-muted">{{ p.cantidad }} prendas ({{ p.modalidad_entrega }})</div>
+          <div class="small text-muted">{{ p.soporte_fiscal }}</div>
+        </td>
+        <td>
+          <div class="hilos-box">{{ p.descripcion_y_hilos }}</div>
+
+          {% if p.acuerdo_whatsapp %}
+          <div class="mt-2 p-2 rounded border border-success-subtle bg-success-subtle small text-dark">
+            <strong><i class="bi bi-whatsapp text-success me-1"></i>Acuerdo registrado:</strong>
+            {{ p.acuerdo_whatsapp }}
+            {% if p.confirmado_por %}
+            <div class="text-muted mt-1" style="font-size: 0.78rem;">
+              Confirmado por {{ p.confirmado_por }} ({{ p.fecha_confirmacion }})
+            </div>
+            {% endif %}
+          </div>
+          {% elif p.estado == 'Cotización' %}
+          <div class="mt-2 small text-primary-emphasis fw-semibold">
+            <i class="bi bi-chat-dots me-1"></i>Falta confirmar pedido y anotar lo acordado por WhatsApp.
+          </div>
+          {% endif %}
+
+          {{ mostrar_adjunto(p.imagen_url, 'Ver boceto inicial del cliente', 'Boceto del pedido #' ~ p.id) }}
+          {{ mostrar_adjunto(p.evidencia_url, 'Ver prueba / diseño aprobado', 'Prueba aprobada del pedido #' ~ p.id) }}
+
+          <details class="mt-2 small history-details">
+            <summary class="text-secondary fw-semibold">
+              Ver pedido original e historial ({{ p.historial|length }})
+            </summary>
+            <div class="mt-2 p-2 bg-light border rounded">
+              {% if p.solicitud_original %}
+              <div class="pb-2 mb-2 border-bottom">
+                <span class="fw-bold text-dark d-block">Lo que pidió el cliente originalmente ({{ p.fecha_creacion }}):</span>
+                <span class="text-secondary">{{ p.solicitud_original }}</span>
+              </div>
+              {% endif %}
+              <div class="fw-bold text-dark mb-1">Registro cronológico de cambios y pruebas:</div>
+              <ul class="list-unstyled mb-0">
+                {% for ev in p.historial %}
+                <li class="mb-2 {% if not loop.last %}pb-2 border-bottom border-secondary-subtle{% endif %}">
+                  <div class="text-dark">
+                    <strong>{{ ev.accion }}</strong>
+                    <span class="text-muted"> — {{ ev.fecha_hora }} · {{ ev.autor }}</span>
+                  </div>
+                  <div class="text-secondary">{{ ev.resumen }}</div>
+                  {% if ev.archivo_url %}
+                  <a href="{{ ev.archivo_url }}" target="_blank" rel="noopener" class="fw-semibold text-primary text-decoration-none">
+                    <i class="bi bi-paperclip me-1"></i>Ver archivo adjunto de esta fecha
+                  </a>
+                  {% endif %}
+                </li>
+                {% endfor %}
+              </ul>
+            </div>
+          </details>
+        </td>
+        <td>
+          {% if p.estado == 'Cotización' %}
+            <span class="badge bg-info text-dark px-2 py-1">Cotización Web</span>
+          {% elif p.estado == 'Pendiente' %}
+            <span class="badge bg-secondary px-2 py-1">Pendiente</span>
+          {% elif p.estado == 'En Proceso' %}
+            <span class="badge bg-warning text-dark px-2 py-1">En Máquina</span>
+          {% elif p.estado == 'Listo' %}
+            <span class="badge bg-success px-2 py-1">Listo</span>
+          {% elif p.estado == 'Entregado' %}
+            <span class="badge bg-dark px-2 py-1">Entregado</span>
+          {% endif %}
+        </td>
+        <td>
+          <div class="d-flex flex-wrap gap-1">
+            {% if session.get('rol') == 'admin' %}
+              <script type="application/json" id="pedido-json-{{ p.id }}">{{ {
+                "id": p.id,
+                "cliente": p.cliente_nombre,
+                "telefono": p.cliente_telefono,
+                "servicio": p.tipo_servicio,
+                "cantidad": p.cantidad,
+                "descripcion": p.descripcion_y_hilos,
+                "entrega": p.modalidad_entrega,
+                "fiscal": p.soporte_fiscal,
+                "estado": p.estado,
+                "solicitud_original": p.solicitud_original,
+                "acuerdo_whatsapp": p.acuerdo_whatsapp,
+                "imagen_url": p.imagen_url,
+                "evidencia_url": p.evidencia_url,
+                "confirmado_por": p.confirmado_por,
+                "fecha_confirmacion": p.fecha_confirmacion
+              }|tojson }}</script>
+
+              {% if p.estado == 'Cotización' %}
+              <button
+                type="button"
+                class="btn btn-primary btn-sm fw-semibold btn-editar-pedido"
+                data-bs-toggle="modal"
+                data-bs-target="#modalEditarPedido"
+                data-id="{{ p.id }}"
+                data-modo="confirmar"
+              >
+                <i class="bi bi-check2-circle me-1"></i>Confirmar y Anotar Acuerdo
+              </button>
+              {% endif %}
+            {% endif %}
+
+            {% if p.estado == 'Pendiente' %}
+            <form action="{{ url_for('cambiar_estado_pedido', pedido_id=p.id) }}" method="POST">
+              <input type="hidden" name="estado" value="En Proceso">
+              <button type="submit" class="btn btn-warning btn-sm fw-semibold">Pasar a Máquina</button>
+            </form>
+            {% endif %}
+
+            {% if p.estado in ['Pendiente', 'En Proceso'] %}
+            <form action="{{ url_for('cambiar_estado_pedido', pedido_id=p.id) }}" method="POST">
+              <input type="hidden" name="estado" value="Listo">
+              <button type="submit" class="btn btn-success btn-sm fw-semibold">Marcar Listo</button>
+            </form>
+            {% endif %}
+
+            {% if p.estado == 'Listo' %}
+            <form action="{{ url_for('cambiar_estado_pedido', pedido_id=p.id) }}" method="POST">
+              <input type="hidden" name="estado" value="Entregado">
+              <button type="submit" class="btn btn-outline-dark btn-sm">Entregado</button>
+            </form>
+            {% endif %}
+
+            {% if session.get('rol') == 'admin' %}
+            <button
+              type="button"
+              class="btn btn-outline-primary btn-sm btn-editar-pedido"
+              data-bs-toggle="modal"
+              data-bs-target="#modalEditarPedido"
+              data-id="{{ p.id }}"
+              data-modo="editar"
+            >
+              <i class="bi bi-pencil-square me-1"></i>Editar / Acuerdo
+            </button>
+
+            <button
+              type="button"
+              class="btn btn-outline-danger btn-sm btn-confirmar-borrar"
+              data-action="{{ url_for('eliminar_pedido', pedido_id=p.id) }}"
+              data-desc="el pedido #{{ p.id }} de {{ p.cliente_nombre }}"
+              aria-label="Borrar pedido #{{ p.id }}"
+            >
+              <i class="bi bi-trash"></i>
+            </button>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <th scope="row">—</th>
+        <td colspan="5" class="text-center py-4 text-muted">No hay pedidos con ese filtro.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Modal para Anotar Nuevo Pedido -->
+{% if session.get('rol') == 'admin' %}
+<div class="modal fade" id="modalNuevoPedido" tabindex="-1" aria-labelledby="modalPedidoLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h5 fw-bold" id="modalPedidoLabel">Anotar Nuevo Pedido</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <form action="{{ url_for('crear_pedido') }}" method="POST" enctype="multipart/form-data">
+        <div class="modal-body">
+          <p class="small text-muted mb-3">
+            Si el cliente ya ha venido antes, escribe su <strong>Cédula o NIT</strong> y el sistema llenará su nombre y sus códigos de hilo automáticamente.
+          </p>
+
+          <div class="row g-3 mb-3">
+            <div class="col-12 col-md-4">
+              <label for="input-cedula" class="form-label fw-semibold mb-1">Cédula o NIT *</label>
+              <input type="text" id="input-cedula" name="cedula" class="form-control" autocorrect="off" autocapitalize="none" spellcheck="false" required>
+              <div id="cedula-lookup-status" class="form-text small" role="status" aria-live="polite"></div>
+            </div>
+            <div class="col-12 col-md-5">
+              <label for="input-nombre" class="form-label fw-semibold mb-1">Nombre del Cliente o Empresa *</label>
+              <input type="text" id="input-nombre" name="nombre" class="form-control" autocomplete="name" required>
+            </div>
+            <div class="col-12 col-md-3">
+              <label for="input-telefono" class="form-label fw-semibold mb-1">Teléfono *</label>
+              <input type="tel" id="input-telefono" name="telefono" class="form-control" autocomplete="tel" inputmode="tel" required>
+            </div>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-12 col-md-8">
+              <fieldset>
+                <legend class="form-label fw-semibold mb-1 fs-6">Tipo de Trabajo *</legend>
+                <div class="d-flex flex-wrap gap-3 pt-1">
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="tipo_servicio" id="srv-bordado" value="Solo Bordado" checked>
+                    <label class="form-check-label" for="srv-bordado">Solo Bordado</label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="tipo_servicio" id="srv-estampado" value="Solo Estampado">
+                    <label class="form-check-label" for="srv-estampado">Solo Estampado</label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="tipo_servicio" id="srv-completo" value="Confección + Bordado/Estampado">
+                    <label class="form-check-label" for="srv-completo">Confección + Bordado</label>
+                  </div>
+                </div>
+              </fieldset>
+            </div>
+            <div class="col-12 col-md-4">
+              <label for="input-cantidad" class="form-label fw-semibold mb-1">Cantidad de Prendas *</label>
+              <input type="number" id="input-cantidad" name="cantidad" value="12" min="1" class="form-control" required>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="input-descripcion-hilos" class="form-label fw-semibold mb-1">Descripción y Códigos de Hilo para el Operario *</label>
+            <div class="mb-2">
+              <span class="small text-muted d-block mb-1">Toca un hilo para agregar su código exacto (puedes agregar más en Inventario):</span>
+              <div class="d-flex flex-wrap gap-1" style="max-height: 110px; overflow-y: auto;">
+                {% for ins in insumos if ins.categoria == 'Hilo' %}
+                  <button type="button" class="btn {% if ins.stock_actual <= 0 %}btn-outline-danger{% else %}btn-outline-secondary{% endif %} btn-sm py-0 px-2 btn-insert-hilo" data-target="input-descripcion-hilos" data-hilo="{% if ins.codigo_referencia %}[{{ ins.codigo_referencia }} {{ ins.nombre_color }}]{% else %}[Hilo: {{ ins.nombre_color }}]{% endif %}">
+                    <span class="swatch-dot" style="background-color: {{ ins.color_hex }};"></span>
+                    <span {% if ins.stock_actual <= 0 %}style="text-decoration: line-through; text-decoration-color: #dc2626;"{% endif %}>
+                      {% if ins.codigo_referencia %}{{ ins.codigo_referencia }} ({{ ins.nombre_color }}){% else %}{{ ins.nombre_color }}{% endif %}
+                    </span>
+                    {% if ins.stock_actual <= 0 %}<strong class="text-danger ms-1">Agotado</strong>{% endif %}
+                  </button>
+                {% endfor %}
+              </div>
+            </div>
+            <textarea id="input-descripcion-hilos" name="descripcion_y_hilos" rows="2" class="form-control" required></textarea>
+          </div>
+
+          <div class="mb-3">
+            <label for="modal-imagen-ref" class="form-label fw-semibold mb-1">Adjuntar Foto o PDF del Diseño Aprobado (Opcional)</label>
+            <input type="file" id="modal-imagen-ref" name="imagen_referencia" accept="image/png,image/jpeg,image/webp,image/gif,application/pdf" class="form-control form-control-sm">
+          </div>
+
+          <div class="mb-3 p-3 bg-light border rounded-3">
+            <label for="input-acuerdo-whatsapp" class="form-label fw-semibold mb-1">
+              <i class="bi bi-whatsapp text-success me-1"></i>Acuerdo / Detalles pactados y pruebas (Opcional)
+            </label>
+            <textarea id="input-acuerdo-whatsapp" name="acuerdo_whatsapp" rows="2" class="form-control" placeholder="Ej: Tallas (6 M, 6 L), precio acordado $140.000, abono $70.000, entrega el viernes."></textarea>
+            <div class="mt-2">
+              <label for="modal-evidencia-ref" class="form-label small fw-semibold mb-1">Adjuntar captura de chat de WhatsApp o recibo de abono (Opcional)</label>
+              <input type="file" id="modal-evidencia-ref" name="evidencia_archivo" accept="image/png,image/jpeg,image/webp,image/gif,application/pdf" class="form-control form-control-sm">
+            </div>
+          </div>
+
+          <div class="row g-3 mb-2">
+            <div class="col-12 col-md-6">
+              <fieldset>
+                <legend class="form-label fw-semibold mb-1 fs-6">Entrega</legend>
+                <div class="d-flex gap-3">
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="modalidad_entrega" id="ent-local" value="Local" checked>
+                    <label class="form-check-label" for="ent-local">En el local</label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="modalidad_entrega" id="ent-corre" value="Correcaminos">
+                    <label class="form-check-label" for="ent-corre">Mensajería Correcaminos</label>
+                  </div>
+                </div>
+              </fieldset>
+            </div>
+            <div class="col-12 col-md-6">
+              <fieldset>
+                <legend class="form-label fw-semibold mb-1 fs-6">Soporte de Pago</legend>
+                <div class="d-flex gap-3">
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="soporte_fiscal" id="fis-recibo" value="Recibo de Caja" checked>
+                    <label class="form-check-label" for="fis-recibo">Recibo de Caja</label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="soporte_fiscal" id="fis-dian" value="Factura Electrónica DIAN">
+                    <label class="form-check-label" for="fis-dian">Factura Electrónica</label>
+                  </div>
+                </div>
+              </fieldset>
+            </div>
+          </div>
+
+          <div id="nuevo-dir-wrap" class="d-none mt-2">
+            <label for="input-direccion" class="form-label fw-semibold mb-1">Dirección de entrega (Correcaminos)</label>
+            <input type="text" id="input-direccion" name="direccion" class="form-control" autocomplete="street-address">
+          </div>
+          <input type="hidden" name="acepta_ley1581" value="1">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary fw-bold px-4">Guardar Pedido</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para Confirmar / Editar Pedido, Anotar Acuerdos de WhatsApp y Subir Pruebas -->
+<div class="modal fade" id="modalEditarPedido" tabindex="-1" aria-labelledby="modalEditarLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h5 fw-bold" id="modalEditarLabel">Editar Pedido y Registrar Acuerdo</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <form id="formEditarPedido" method="POST" enctype="multipart/form-data">
+        <div class="modal-body">
+          <div class="small text-muted mb-2">
+            Cliente: <strong id="edit-cliente-nombre" class="text-dark"></strong>
+            <span id="edit-cliente-tel" class="ms-2"></span>
+          </div>
+
+          <!-- Respaldo inmutable de lo que envió el cliente originalmente -->
+          <div class="p-3 bg-light border rounded-3 mb-3 small">
+            <div class="fw-bold text-dark mb-1">
+              <i class="bi bi-lock-fill text-secondary me-1"></i>Lo que el cliente pidió originalmente (no se borra):
+            </div>
+            <div id="edit-solicitud-original" class="text-secondary"></div>
+            <div id="edit-imagen-original-wrap" class="mt-2 d-none">
+              <a id="edit-imagen-original-link" href="#" target="_blank" rel="noopener" class="fw-semibold text-primary text-decoration-none">
+                <i class="bi bi-image me-1"></i>Ver boceto inicial enviado por el cliente
+              </a>
+            </div>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-12 col-md-5">
+              <label for="edit-servicio" class="form-label fw-semibold mb-1">Tipo de Trabajo</label>
+              <select id="edit-servicio" name="tipo_servicio" class="form-select">
+                <option value="Solo Bordado">Solo Bordado</option>
+                <option value="Solo Estampado">Solo Estampado</option>
+                <option value="Confección + Bordado/Estampado">Confección + Bordado/Estampado</option>
+              </select>
+            </div>
+            <div class="col-6 col-md-3">
+              <label for="edit-cantidad" class="form-label fw-semibold mb-1">Cantidad Final</label>
+              <input type="number" id="edit-cantidad" name="cantidad" min="1" class="form-control" required>
+            </div>
+            <div class="col-6 col-md-4">
+              <label for="edit-estado" class="form-label fw-semibold mb-1">Estado del Pedido</label>
+              <select id="edit-estado" name="estado" class="form-select">
+                <option value="Cotización">Cotización Web (Por confirmar)</option>
+                <option value="Pendiente">Pendiente (Confirmado)</option>
+                <option value="En Proceso">En Máquina</option>
+                <option value="Listo">Listo</option>
+                <option value="Entregado">Entregado</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="edit-descripcion" class="form-label fw-semibold mb-1">Qué bordar y Códigos Exactos de Hilo (para el Operario) *</label>
+            <div class="mb-2">
+              <span class="small text-muted d-block mb-1">Toca los conos de hilo acordados con el cliente para agregarlos:</span>
+              <div class="d-flex flex-wrap gap-1" style="max-height: 110px; overflow-y: auto;">
+                {% for ins in insumos if ins.categoria == 'Hilo' %}
+                  <button type="button" class="btn {% if ins.stock_actual <= 0 %}btn-outline-danger{% else %}btn-outline-secondary{% endif %} btn-sm py-0 px-2 btn-insert-hilo" data-target="edit-descripcion" data-hilo="{% if ins.codigo_referencia %}[{{ ins.codigo_referencia }} {{ ins.nombre_color }}]{% else %}[Hilo: {{ ins.nombre_color }}]{% endif %}">
+                    <span class="swatch-dot" style="background-color: {{ ins.color_hex }};"></span>
+                    <span {% if ins.stock_actual <= 0 %}style="text-decoration: line-through; text-decoration-color: #dc2626;"{% endif %}>
+                      {% if ins.codigo_referencia %}{{ ins.codigo_referencia }} ({{ ins.nombre_color }}){% else %}{{ ins.nombre_color }}{% endif %}
+                    </span>
+                    {% if ins.stock_actual <= 0 %}<strong class="text-danger ms-1">Agotado</strong>{% endif %}
+                  </button>
+                {% endfor %}
+              </div>
+            </div>
+            <textarea id="edit-descripcion" name="descripcion_y_hilos" rows="3" class="form-control" required></textarea>
+          </div>
+
+          <!-- Registro explícito del acuerdo por WhatsApp + prueba adjunta -->
+          <div class="p-3 rounded-3 border border-success-subtle bg-success-subtle mb-3">
+            <label for="edit-acuerdo-whatsapp" class="form-label fw-bold mb-1 text-dark">
+              <i class="bi bi-whatsapp text-success me-1"></i>Acuerdo cerrado con el cliente (por WhatsApp / llamada / local)
+            </label>
+            <textarea
+              id="edit-acuerdo-whatsapp"
+              name="acuerdo_whatsapp"
+              rows="3"
+              class="form-control bg-white"
+              placeholder="Anota exactamente lo acordado como respaldo: tallas, medidas del logo, cambios pedidos por WhatsApp, valor total, abono y fecha de entrega."
+            ></textarea>
+            <div class="mt-2">
+              <label for="edit-evidencia-archivo" class="form-label small fw-semibold mb-1 text-dark">
+                Subir captura del chat de WhatsApp, recibo o diseño final aprobado (Opcional, máx. 8 MB)
+              </label>
+              <input type="file" id="edit-evidencia-archivo" name="evidencia_archivo" accept="image/png,image/jpeg,image/webp,image/gif,application/pdf" class="form-control form-control-sm bg-white">
+              <div id="edit-evidencia-actual-wrap" class="mt-1 small d-none">
+                <a id="edit-evidencia-actual-link" href="#" target="_blank" rel="noopener" class="fw-semibold text-success-emphasis text-decoration-none">
+                  <i class="bi bi-check2-circle me-1"></i>Ya existe una prueba guardada (ver archivo actual)
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-6">
+              <label for="edit-entrega" class="form-label fw-semibold mb-1">Entrega</label>
+              <select id="edit-entrega" name="modalidad_entrega" class="form-select">
+                <option value="Local">Local</option>
+                <option value="Correcaminos">Correcaminos</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <label for="edit-fiscal" class="form-label fw-semibold mb-1">Comprobante</label>
+              <select id="edit-fiscal" name="soporte_fiscal" class="form-select">
+                <option value="Recibo de Caja">Recibo de Caja</option>
+                <option value="Factura Electrónica DIAN">Factura Electrónica DIAN</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="edit-guardar-hilos" name="guardar_hilos_cliente" value="1">
+            <label class="form-check-label small" for="edit-guardar-hilos">
+              Guardar estos códigos de hilo en la ficha fija del cliente para futuros pedidos
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" id="btn-guardar-edicion" class="btn btn-primary fw-bold px-4">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Diálogo nativo de confirmación para eliminar pedido -->
+<dialog id="dialog-confirmar-borrar" aria-labelledby="dialog-borrar-title">
+  <h2 id="dialog-borrar-title" class="h5 fw-bold mb-2">¿Eliminar pedido?</h2>
+  <p class="text-muted small mb-4">
+    Vas a borrar <strong id="dialog-borrar-desc"></strong>. Esta acción no se puede deshacer.
+  </p>
+  <form id="form-borrar-confirmado" method="POST" class="d-flex justify-content-end gap-2">
+    <button type="button" id="btn-cancelar-borrar" class="btn btn-outline-secondary" autofocus>Cancelar</button>
+    <button type="submit" class="btn btn-danger fw-bold">Sí, eliminar</button>
+  </form>
+</dialog>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    const cedulaInput = document.getElementById('input-cedula');
+    const nombreInput = document.getElementById('input-nombre');
+    const telInput = document.getElementById('input-telefono');
+    const dirInput = document.getElementById('input-direccion');
+    const descInput = document.getElementById('input-descripcion-hilos');
+    const statusBox = document.getElementById('cedula-lookup-status');
+
+    if (cedulaInput) {
+      cedulaInput.addEventListener('blur', async function () {
+        const val = cedulaInput.value.trim();
+        if (!val) return;
+        try {
+          const res = await fetch('/api/clientes/' + encodeURIComponent(val));
+          statusBox.textContent = '';
+          const span = document.createElement('span');
+          if (res.ok) {
+            const data = await res.json();
+            if (data.encontrado && data.cliente) {
+              nombreInput.value = data.cliente.nombre || '';
+              telInput.value = data.cliente.telefono || '';
+              if (dirInput) dirInput.value = data.cliente.direccion || '';
+              if (data.cliente.hilos_corporativos && !descInput.value.trim()) {
+                descInput.value = data.cliente.hilos_corporativos + ' — ';
+              }
+              span.className = 'text-success fw-semibold';
+              span.textContent = 'Cliente existente: datos cargados.';
+              statusBox.appendChild(span);
+            }
+          } else {
+            span.className = 'text-muted';
+            span.textContent = 'Cliente nuevo.';
+            statusBox.appendChild(span);
+          }
+        } catch (e) {}
+      });
+    }
+
+    // Mostrar dirección en modal nuevo pedido solo si elige Correcaminos
+    const nuevoDirWrap = document.getElementById('nuevo-dir-wrap');
+    document.querySelectorAll('#modalNuevoPedido input[name="modalidad_entrega"]').forEach(function (r) {
+      r.addEventListener('change', function () {
+        if (nuevoDirWrap) {
+          nuevoDirWrap.classList.toggle('d-none', r.value !== 'Correcaminos');
+        }
+      });
+    });
+
+    // Botones rápidos de hilo para Nuevo y Editar
+    document.querySelectorAll('.btn-insert-hilo').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const targetId = btn.getAttribute('data-target');
+        const textarea = document.getElementById(targetId);
+        if (!textarea) return;
+        const tag = btn.getAttribute('data-hilo');
+        textarea.value = (textarea.value ? textarea.value.trim() + ' ' : '') + tag + ' ';
+        textarea.focus();
+      });
+    });
+
+    // Rellenar modal de Confirmar / Editar Pedido y Pruebas
+    const formEdit = document.getElementById('formEditarPedido');
+    const modalEditTitle = document.getElementById('modalEditarLabel');
+    const btnGuardarEdicion = document.getElementById('btn-guardar-edicion');
+
+    document.querySelectorAll('.btn-editar-pedido').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const id = btn.getAttribute('data-id');
+        const modo = btn.getAttribute('data-modo') || 'editar';
+        const jsonEl = document.getElementById('pedido-json-' + id);
+        if (!jsonEl || !formEdit) return;
+
+        const data = JSON.parse(jsonEl.textContent);
+        formEdit.action = '/pedidos/' + id + '/editar';
+
+        document.getElementById('edit-cliente-nombre').textContent = data.cliente || '';
+        document.getElementById('edit-cliente-tel').textContent = data.telefono ? '(Tel: ' + data.telefono + ')' : '';
+        document.getElementById('edit-solicitud-original').textContent = data.solicitud_original || data.descripcion || '';
+
+        const imgWrap = document.getElementById('edit-imagen-original-wrap');
+        const imgLink = document.getElementById('edit-imagen-original-link');
+        if (data.imagen_url) {
+          imgLink.setAttribute('href', data.imagen_url);
+          imgWrap.classList.remove('d-none');
+        } else {
+          imgLink.setAttribute('href', '#');
+          imgWrap.classList.add('d-none');
+        }
+
+        const evWrap = document.getElementById('edit-evidencia-actual-wrap');
+        const evLink = document.getElementById('edit-evidencia-actual-link');
+        if (data.evidencia_url) {
+          evLink.setAttribute('href', data.evidencia_url);
+          evWrap.classList.remove('d-none');
+        } else {
+          evLink.setAttribute('href', '#');
+          evWrap.classList.add('d-none');
+        }
+
+        document.getElementById('edit-servicio').value = data.servicio;
+        document.getElementById('edit-cantidad').value = data.cantidad;
+        document.getElementById('edit-descripcion').value = data.descripcion;
+        document.getElementById('edit-acuerdo-whatsapp').value = data.acuerdo_whatsapp || '';
+        document.getElementById('edit-entrega').value = data.entrega;
+        document.getElementById('edit-fiscal').value = data.fiscal;
+        document.getElementById('edit-guardar-hilos').checked = false;
+        const evInput = document.getElementById('edit-evidencia-archivo');
+        if (evInput) evInput.value = '';
+
+        const estadoSelect = document.getElementById('edit-estado');
+        if (modo === 'confirmar') {
+          estadoSelect.value = (data.estado === 'Cotización') ? 'Pendiente' : data.estado;
+          modalEditTitle.textContent = 'Confirmar Pedido #' + id + ' y Registrar Acuerdo';
+          btnGuardarEdicion.textContent = 'Confirmar Pedido y Guardar Pruebas';
+          btnGuardarEdicion.className = 'btn btn-success fw-bold px-4';
+        } else {
+          estadoSelect.value = data.estado;
+          modalEditTitle.textContent = 'Editar Pedido #' + id + ' y Actualizar Acuerdo';
+          btnGuardarEdicion.textContent = 'Guardar Cambios';
+          btnGuardarEdicion.className = 'btn btn-primary fw-bold px-4';
+        }
+      });
+    });
+
+    // Confirmación accesible con <dialog> nativo antes de eliminar
+    const dialogBorrar = document.getElementById('dialog-confirmar-borrar');
+    const formBorrar = document.getElementById('form-borrar-confirmado');
+    const descBorrar = document.getElementById('dialog-borrar-desc');
+    const btnCancelarBorrar = document.getElementById('btn-cancelar-borrar');
+
+    if (dialogBorrar && formBorrar) {
+      document.querySelectorAll('.btn-confirmar-borrar').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          formBorrar.action = btn.getAttribute('data-action');
+          descBorrar.textContent = btn.getAttribute('data-desc');
+          dialogBorrar.showModal();
+        });
+      });
+
+      btnCancelarBorrar.addEventListener('click', function () {
+        dialogBorrar.close('cancel');
+      });
+
+      dialogBorrar.addEventListener('close', function () {
+        dialogBorrar.returnValue = '';
+      });
+    }
+  })();
+</script>
+{% endblock %}

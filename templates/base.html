@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Sierra Diseños y Bordados{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <style>
+    body {
+      background-color: #f8fafc;
+      color: #1e293b;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .visually-hidden {
+      position: absolute;
+      clip-path: inset(50%);
+      overflow: hidden;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      border: 0;
+      white-space: nowrap;
+    }
+
+    input:focus-visible,
+    select:focus-visible,
+    textarea:focus-visible,
+    button:focus-visible,
+    a:focus-visible,
+    .table-wrapper:focus-visible {
+      outline: 3px solid #2563eb !important;
+      outline-offset: 2px;
+    }
+
+    input:user-invalid,
+    textarea:user-invalid,
+    select:user-invalid {
+      border-color: #dc2626 !important;
+      background-color: #fef2f2;
+    }
+
+    .form-control,
+    .form-select {
+      font: inherit;
+      font-size: 1rem;
+      min-height: 46px;
+      border-radius: 0.5rem;
+      border: 1px solid #94a3b8;
+    }
+
+    .navbar-simple {
+      background-color: #ffffff;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .nav-tab-link {
+      color: #475569 !important;
+      font-weight: 600;
+      padding: 0.5rem 1rem !important;
+      border-radius: 0.5rem;
+    }
+
+    .nav-tab-link:hover {
+      background-color: #f1f5f9;
+      color: #0f172a !important;
+    }
+
+    .nav-tab-link[aria-current="page"],
+    .nav-tab-link.active {
+      background-color: #eff6ff;
+      color: #1d4ed8 !important;
+      box-shadow: inset 0 -2px 0 #1d4ed8;
+      font-weight: 700;
+    }
+
+    .clean-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.75rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+
+    /* Tabla limpia y responsiva */
+    .table-wrapper {
+      overflow: auto;
+      max-inline-size: 100%;
+      container-type: inline-size;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.75rem;
+    }
+
+    .table-wrapper table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin-bottom: 0;
+    }
+
+    .table-wrapper thead {
+      position: sticky;
+      inset-block-start: 0;
+      z-index: 2;
+      background: #f8fafc;
+    }
+
+    .table-wrapper thead th {
+      background: #f8fafc;
+      color: #475569;
+      padding: 0.85rem 1rem;
+      font-weight: 600;
+      font-size: 0.85rem;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .table-wrapper tbody th {
+      position: sticky;
+      inset-inline-start: 0;
+      background: #ffffff;
+      z-index: 1;
+      font-weight: 600;
+      border-bottom: 1px solid #f1f5f9;
+      padding: 0.9rem 1rem;
+    }
+
+    .table-wrapper tbody td {
+      padding: 0.9rem 1rem;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: middle;
+    }
+
+    @container (width < 640px) {
+      .table-wrapper table,
+      .table-wrapper thead,
+      .table-wrapper tbody,
+      .table-wrapper tr,
+      .table-wrapper th,
+      .table-wrapper td {
+        display: block;
+      }
+      .table-wrapper thead {
+        display: none;
+      }
+      .table-wrapper tr {
+        margin-block-end: 0.75rem;
+        border-bottom: 2px solid #e2e8f0;
+      }
+      .table-wrapper td:nth-child(2)::before { content: var(--label-2, "Cliente") ": "; font-weight: 600; }
+      .table-wrapper td:nth-child(3)::before { content: var(--label-3, "Servicio") ": "; font-weight: 600; }
+      .table-wrapper td:nth-child(4)::before { content: var(--label-4, "Hilos") ": "; font-weight: 600; }
+      .table-wrapper td:nth-child(5)::before { content: var(--label-5, "Estado") ": "; font-weight: 600; }
+      .table-wrapper td:nth-child(6)::before { content: var(--label-6, "Acción") ": "; font-weight: 600; }
+    }
+
+    /* Resaltado claro para los códigos de hilo */
+    .hilos-box {
+      background-color: #fef9c3;
+      border: 1px solid #fde047;
+      color: #1e293b;
+      padding: 0.5rem 0.75rem;
+      border-radius: 0.5rem;
+      font-weight: 600;
+      font-size: 0.98rem;
+    }
+
+    .swatch-dot {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 1px solid rgba(0, 0, 0, 0.25);
+      vertical-align: middle;
+      margin-right: 5px;
+    }
+
+    dialog:modal {
+      overscroll-behavior: contain;
+      border: 1px solid #cbd5e1;
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      max-width: 440px;
+      width: calc(100% - 2rem);
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+      margin: auto;
+    }
+
+    dialog::backdrop {
+      background: rgba(15, 23, 42, 0.55);
+      overflow: hidden;
+      overscroll-behavior: contain;
+    }
+
+    .history-details > summary {
+      list-style: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      cursor: pointer;
+    }
+
+    .history-details > summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .history-details > summary::before {
+      content: "";
+      inline-size: 0.9em;
+      block-size: 0.9em;
+      flex-shrink: 0;
+      background-color: currentColor;
+      mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' d='M4 6l4 4 4-4'/%3E%3C/svg%3E") no-repeat center / contain;
+      rotate: -90deg;
+    }
+
+    .history-details[open] > summary::before {
+      rotate: 0deg;
+    }
+
+    .history-details::details-content {
+      interpolate-size: allow-keywords;
+      overflow: clip;
+      contain: layout;
+    }
+
+    .history-details:not([open])::details-content {
+      block-size: 0;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .history-details > summary::before {
+        transition: rotate 0.2s;
+      }
+
+      .history-details::details-content {
+        transition: block-size, content-visibility, display;
+        transition-duration: 0.25s;
+        transition-timing-function: ease-in-out;
+        transition-behavior: allow-discrete;
+      }
+    }
+  </style>
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+  <!-- Barra superior limpia y sencilla -->
+  <nav class="navbar navbar-expand-lg navbar-simple py-2 sticky-top">
+    <div class="container">
+      <a class="navbar-brand fw-bold text-dark d-flex align-items-center gap-2" href="{{ url_for('dashboard') if session.get('user_id') else url_for('portal_cotizacion') }}">
+        <i class="bi bi-scissors text-primary fs-4"></i>
+        <span>Sierra Diseños y Bordados</span>
+      </a>
+
+      {% if session.get('user_id') %}
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navSimple" aria-controls="navSimple" aria-expanded="false" aria-label="Menú">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navSimple">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-3 gap-1">
+          <li class="nav-item">
+            <a class="nav-link nav-tab-link {% if request.endpoint == 'dashboard' %}active{% endif %}" {% if request.endpoint == 'dashboard' %}aria-current="page"{% endif %} href="{{ url_for('dashboard') }}">
+              <i class="bi bi-journal-text me-1"></i>1. Cuaderno de Pedidos
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link nav-tab-link {% if request.endpoint == 'vista_tv' %}active{% endif %}" {% if request.endpoint == 'vista_tv' %}aria-current="page"{% endif %} href="{{ url_for('vista_tv') }}">
+              <i class="bi bi-tv me-1"></i>2. Pantalla Operario (TV)
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link nav-tab-link {% if request.endpoint == 'vista_insumos' %}active{% endif %}" {% if request.endpoint == 'vista_insumos' %}aria-current="page"{% endif %} href="{{ url_for('vista_insumos') }}">
+              <i class="bi bi-box-seam me-1"></i>3. Inventario de Hilos
+            </a>
+          </li>
+        </ul>
+
+        <div class="d-flex align-items-center gap-2">
+          <span class="text-muted small me-2">
+            Hola, <strong>{{ session.get('nombre') }}</strong>
+          </span>
+          <form action="{{ url_for('logout') }}" method="POST" class="d-inline">
+            <button type="submit" class="btn btn-outline-secondary btn-sm">Salir</button>
+          </form>
+        </div>
+      </div>
+      {% else %}
+      <div class="d-flex align-items-center gap-2 ms-auto">
+        {% if request.endpoint == 'login' %}
+        <a href="{{ url_for('portal_cotizacion') }}" class="btn btn-outline-primary btn-sm fw-semibold">
+          <i class="bi bi-bag-heart me-1"></i>Hacer un Pedido
+        </a>
+        {% else %}
+        <a href="{{ url_for('login') }}" class="btn btn-outline-primary btn-sm fw-semibold">
+          <i class="bi bi-person-lock me-1"></i>Ingreso del Taller
+        </a>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </nav>
+
+  <main class="container py-4 flex-grow-1">
+    <div role="status" aria-live="polite">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+    </div>
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="border-top bg-white py-3 mt-auto text-center text-muted small">
+    <div class="container d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span>Sierra Diseños y Bordados — Calle 18 #6-69, Santa Marta</span>
+      {% if session.get('user_id') %}
+      <div class="d-flex flex-wrap gap-3">
+        <a href="{{ url_for('portal_cotizacion') }}" class="text-decoration-none text-secondary">Cotizador Público</a>
+        <a href="{{ url_for('vista_clientes') }}" class="text-decoration-none text-secondary">Directorio de Clientes</a>
+        <a href="{{ url_for('api_pedidos') }}" target="_blank" class="text-decoration-none text-secondary">API Pedidos (JSON)</a>
+        {% if session.get('rol') == 'admin' %}
+        <a href="{{ url_for('backup_csv') }}" class="text-decoration-none text-secondary">Descargar Excel/CSV</a>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

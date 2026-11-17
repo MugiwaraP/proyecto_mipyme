@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Directorio de Clientes — Sierra Diseños y Bordados{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <h1 class="h4 fw-bold mb-1">Directorio de Clientes e Hilos Guardados</h1>
+  <p class="text-muted small mb-0">
+    Consulta por cédula, NIT o nombre qué colores de hilo usa siempre cada cliente para repetir pedidos sin equivocaciones.
+  </p>
+</div>
+
+<div class="clean-card p-3 p-md-4 mb-4">
+  <search>
+    <form action="{{ url_for('vista_clientes') }}" method="GET" class="row g-2 align-items-end">
+      <div class="col-12 col-md-8">
+        <label for="q-cliente" class="form-label fw-semibold mb-1">
+          Buscar cliente por Cédula, NIT o Nombre
+        </label>
+        <input
+          type="search"
+          id="q-cliente"
+          name="q"
+          value="{{ q }}"
+          class="form-control"
+          autocorrect="off"
+          autocapitalize="none"
+          spellcheck="false"
+          enterkeyhint="search"
+        >
+      </div>
+      <div class="col-12 col-md-4 d-flex gap-2">
+        <button type="submit" class="btn btn-primary fw-semibold flex-grow-1">
+          <i class="bi bi-search me-1"></i>Buscar
+        </button>
+        {% if q %}
+        <a href="{{ url_for('vista_clientes') }}" class="btn btn-outline-secondary">Ver Todos</a>
+        {% endif %}
+      </div>
+    </form>
+  </search>
+</div>
+
+<div tabindex="0" role="region" aria-labelledby="clientes-table-caption" class="table-wrapper">
+  <table style="--label-2: 'Cliente'; --label-3: 'Contacto'; --label-4: 'Hilos Guardados'; --label-5: 'Pedidos'; --label-6: 'Acción';">
+    <caption id="clientes-table-caption" class="visually-hidden">Listado de clientes con sus hilos guardados</caption>
+    <thead>
+      <tr>
+        <th scope="col">Cédula / NIT</th>
+        <th scope="col">Cliente o Empresa</th>
+        <th scope="col">Teléfono y Dirección</th>
+        <th scope="col" style="min-width: 280px;">Hilos que usa este cliente</th>
+        <th scope="col">Historial</th>
+        <th scope="col">Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in clientes %}
+      <tr>
+        <th scope="row">
+          <span class="badge bg-dark fs-6">{{ c.cedula }}</span>
+        </th>
+        <td>
+          <div class="fw-bold">{{ c.nombre }}</div>
+          <div class="small text-muted">Desde: {{ c.fecha_registro }}</div>
+        </td>
+        <td>
+          <div class="fw-semibold"><i class="bi bi-whatsapp text-success me-1"></i>{{ c.telefono }}</div>
+          <div class="small text-muted">{{ c.direccion or 'Entrega en local' }}</div>
+        </td>
+        <td>
+          <div class="hilos-box">
+            {{ c.hilos_corporativos or 'Sin colores fijos guardados aún' }}
+          </div>
+        </td>
+        <td>
+          <span class="badge bg-primary">{{ c.total_pedidos }} pedidos</span>
+          <div class="small text-muted mt-1">{{ c.total_prendas }} prendas</div>
+        </td>
+        <td>
+          <a href="{{ url_for('dashboard', cedula=c.cedula) }}" class="btn btn-outline-primary btn-sm fw-semibold">
+            <i class="bi bi-folder2-open me-1"></i>Ver Pedidos
+          </a>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <th scope="row">—</th>
+        <td colspan="5" class="text-center py-4 text-muted">No se encontraron clientes.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

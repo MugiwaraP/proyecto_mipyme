@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Ingresar al Taller — Sierra Diseños y Bordados{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center py-4">
+  <div class="col-12 col-md-6 col-lg-4">
+    <div class="clean-card p-4">
+      <div class="text-center mb-4">
+        <h1 id="login-heading" class="h4 fw-bold mb-1">Ingreso del Taller</h1>
+        <p class="text-muted small mb-0">Elige tu perfil o escribe tu usuario:</p>
+      </div>
+
+      <!-- Tres botones directos para entrar a cada vista -->
+      <div class="d-grid gap-2 mb-4">
+        <a href="{{ url_for('portal_cotizacion') }}" class="btn btn-success fw-bold py-2">
+          <i class="bi bi-bag-heart me-1"></i>Cotizar o Consultar mi Pedido
+        </a>
+        <button type="button" class="btn btn-outline-primary fw-semibold py-2" id="btn-demo-admin">
+          <i class="bi bi-journal-text me-1"></i>Entrar como Recepción / Dueño (Admin)
+        </button>
+        <button type="button" class="btn btn-outline-dark fw-semibold py-2" id="btn-demo-operario">
+          <i class="bi bi-tv me-1"></i>Entrar como Operario de Bordado
+        </button>
+      </div>
+
+      <hr class="my-3">
+
+      <form action="{{ url_for('login') }}" method="POST" aria-labelledby="login-heading" id="login-form">
+        <div class="mb-3">
+          <label for="username" class="form-label fw-semibold mb-1">Usuario *</label>
+          <input
+            type="text"
+            class="form-control"
+            id="username"
+            name="username"
+            autocomplete="username"
+            autocorrect="off"
+            autocapitalize="none"
+            spellcheck="false"
+            required
+          >
+        </div>
+
+        <div class="mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <label for="current-password" class="form-label fw-semibold mb-0">Contraseña *</label>
+            <button
+              id="toggle-password"
+              type="button"
+              class="btn btn-link btn-sm p-0 text-decoration-none"
+              aria-pressed="false"
+              aria-describedby="toggle-warning"
+            >
+              <span id="toggle-text">Mostrar</span>
+            </button>
+          </div>
+          <span id="toggle-warning" class="visually-hidden">Advertencia: esto mostrará tu contraseña en la pantalla.</span>
+          <input
+            type="password"
+            class="form-control"
+            id="current-password"
+            name="password"
+            autocomplete="current-password"
+            required
+          >
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100 fw-bold py-2">Entrar</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    const pwdInput = document.getElementById('current-password');
+    const userInput = document.getElementById('username');
+    const loginForm = document.getElementById('login-form');
+    const toggleBtn = document.getElementById('toggle-password');
+    const toggleText = document.getElementById('toggle-text');
+
+    toggleBtn.addEventListener('click', function () {
+      const isShowing = pwdInput.type === 'text';
+      pwdInput.type = isShowing ? 'password' : 'text';
+      toggleBtn.setAttribute('aria-pressed', String(!isShowing));
+      toggleText.textContent = isShowing ? 'Mostrar' : 'Ocultar';
+    });
+
+    document.getElementById('btn-demo-admin').addEventListener('click', function () {
+      userInput.value = 'admin';
+      pwdInput.value = 'admin123';
+      loginForm.submit();
+    });
+
+    document.getElementById('btn-demo-operario').addEventListener('click', function () {
+      userInput.value = 'operario';
+      pwdInput.value = 'operario123';
+      loginForm.submit();
+    });
+  })();
+</script>
+{% endblock %}

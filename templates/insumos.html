@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+{% block title %}Inventario de Hilos — Sierra Diseños y Bordados{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+  <div>
+    <h1 class="h4 fw-bold mb-1">Inventario de Hilos y Materiales</h1>
+    <p class="text-muted small mb-0">
+      Los hilos que agregues aquí aparecen automáticamente en el cotizador del cliente; el interlón y demás materiales quedan para control interno.
+    </p>
+  </div>
+  {% if session.get('rol') == 'admin' %}
+  <button type="button" class="btn btn-primary fw-bold" data-bs-toggle="modal" data-bs-target="#modalNuevoInsumo">
+    <i class="bi bi-plus-lg me-1"></i>Agregar Hilo o Material
+  </button>
+  {% endif %}
+</div>
+
+<!-- Resumen sencillo de qué trabajo se vende más -->
+<div class="clean-card p-3 p-md-4 mb-4">
+  <h2 class="h6 fw-bold mb-3">¿Qué servicio piden más los clientes?</h2>
+  <div class="row g-3">
+    {% for row in demanda_servicios %}
+      {% set pct = ((row.total_prendas / total_prendas_global) * 100)|round(0)|int %}
+      <div class="col-12 col-md-4">
+        <div class="p-3 border rounded-3 bg-light">
+          <div class="fw-bold">{{ row.tipo_servicio }}</div>
+          <div class="fs-5 fw-bold text-primary">{{ row.total_prendas }} prendas ({{ pct }}%)</div>
+          <div class="small text-muted">{{ row.total_ordenes }} pedidos</div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Tabla de Inventario -->
+<div tabindex="0" role="region" aria-labelledby="insumos-table-caption" class="table-wrapper">
+  <table style="--label-2: 'Color o Material'; --label-3: 'Tipo'; --label-4: 'Cantidad'; --label-5: 'Estado'; --label-6: 'Ajustar';">
+    <caption id="insumos-table-caption" class="visually-hidden">Hilos e interlón en bodega</caption>
+    <thead>
+      <tr>
+        <th scope="col">Código</th>
+        <th scope="col">Color o Material</th>
+        <th scope="col">Tipo</th>
+        <th scope="col">Cantidad</th>
+        <th scope="col">Estado</th>
+        {% if session.get('rol') == 'admin' %}
+        <th scope="col">Ajustar</th>
+        {% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for i in insumos %}
+      <tr>
+        <th scope="row">
+          {% if i.codigo_referencia %}
+            <code>{{ i.codigo_referencia }}</code>
+          {% else %}
+            <span class="text-muted small">Sin código</span>
+          {% endif %}
+        </th>
+        <td>
+          <span class="swatch-dot" style="background-color: {{ i.color_hex }};"></span>
+          <strong>{{ i.nombre_color }}</strong>
+        </td>
+        <td>{{ i.categoria }}</td>
+        <td>
+          <strong class="fs-5 {% if i.requiere_reposicion %}text-danger{% endif %}">{{ i.stock_actual }}</strong>
+          <span class="text-muted small">{{ i.unidad }} (mín. {{ i.stock_minimo }})</span>
+        </td>
+        <td>
+          {% if i.requiere_reposicion %}
+            <span class="badge bg-danger">Comprar más</span>
+          {% else %}
+            <span class="badge bg-success">Suficiente</span>
+          {% endif %}
+        </td>
+        {% if session.get('rol') == 'admin' %}
+        <td>
+          <div class="d-flex flex-wrap align-items-center gap-1">
+            <form action="{{ url_for('ajustar_stock_insumo', insumo_id=i.id) }}" method="POST">
+              <input type="hidden" name="accion" value="restar">
+              <button type="submit" class="btn btn-outline-secondary btn-sm px-2" aria-label="Restar 1 a {{ i.nombre_color }}">-1</button>
+            </form>
+            <form action="{{ url_for('ajustar_stock_insumo', insumo_id=i.id) }}" method="POST">
+              <input type="hidden" name="accion" value="sumar">
+              <button type="submit" class="btn btn-outline-primary btn-sm px-2" aria-label="Sumar 1 a {{ i.nombre_color }}">+1</button>
+            </form>
+            <!-- Escribir la cantidad exacta contada en el estante -->
+            <form action="{{ url_for('ajustar_stock_insumo', insumo_id=i.id) }}" method="POST" class="d-flex gap-1">
+              <input type="hidden" name="accion" value="fijar">
+              <label for="fijar-{{ i.id }}" class="visually-hidden">Cantidad exacta de {{ i.nombre_color }}</label>
+              <input type="number" id="fijar-{{ i.id }}" name="stock_actual" min="0" value="{{ i.stock_actual }}" class="form-control form-control-sm" style="width: 75px; min-height: 31px;">
+              <button type="submit" class="btn btn-outline-dark btn-sm">Guardar</button>
+            </form>
+            <button
+              type="button"
+              class="btn btn-outline-danger btn-sm btn-confirmar-quitar-insumo"
+              data-action="{{ url_for('eliminar_insumo', insumo_id=i.id) }}"
+              data-nombre="{{ i.nombre_color }}"
+              aria-label="Quitar {{ i.nombre_color }} del inventario"
+            >
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Modal para agregar un nuevo hilo o material -->
+{% if session.get('rol') == 'admin' %}
+<div class="modal fade" id="modalNuevoInsumo" tabindex="-1" aria-labelledby="modalInsumoLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h5 fw-bold" id="modalInsumoLabel">Agregar Hilo o Material</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <form action="{{ url_for('crear_insumo') }}" method="POST">
+        <div class="modal-body">
+          <fieldset class="mb-3">
+            <legend class="form-label fw-semibold fs-6">¿Qué vas a agregar?</legend>
+            <div class="d-flex flex-wrap gap-3">
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="categoria" id="cat-hilo" value="Hilo" checked>
+                <label class="form-check-label" for="cat-hilo">Hilo</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="categoria" id="cat-interlon" value="Interlon">
+                <label class="form-check-label" for="cat-interlon">Interlón / Entretela</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="categoria" id="cat-otro" value="Insumo">
+                <label class="form-check-label" for="cat-otro">Otro Material</label>
+              </div>
+            </div>
+          </fieldset>
+
+          <div class="mb-3">
+            <label for="codigo_referencia" class="form-label fw-semibold">Código o Referencia <span class="text-muted fw-normal">(Opcional)</span></label>
+            <input type="text" id="codigo_referencia" name="codigo_referencia" class="form-control" autocorrect="off" autocapitalize="characters" spellcheck="false" aria-describedby="codigo-help">
+            <div id="codigo-help" class="form-text">Si tiene código en la etiqueta escríbelo (ej: <code>HILO-4022</code>); si no tiene, puedes dejarlo vacío.</div>
+          </div>
+
+          <div class="mb-3">
+            <label for="nombre_color" id="label-nombre-material" class="form-label fw-semibold">Nombre del color (visible para el cliente) *</label>
+            <input type="text" id="nombre_color" name="nombre_color" class="form-control" required aria-describedby="nombre-help">
+            <div id="nombre-help" class="form-text">Ej: "Verde Limón", "Azul Bebé", "Plateado".</div>
+          </div>
+
+          <div class="row g-2 align-items-end">
+            <div class="col-6 col-sm-3">
+              <label for="color_hex" class="form-label fw-semibold">Color</label>
+              <input type="color" id="color_hex" name="color_hex" value="#1D4ED8" class="form-control form-control-color w-100">
+            </div>
+            <div class="col-6 col-sm-3">
+              <label for="unidad" class="form-label fw-semibold">Unidad</label>
+              <select id="unidad" name="unidad" class="form-select">
+                <option value="Conos" selected>Conos</option>
+                <option value="Rollos">Rollos</option>
+                <option value="Unidades">Unidades</option>
+                <option value="Metros">Metros</option>
+                <option value="Litros">Litros</option>
+                <option value="Cajas">Cajas</option>
+              </select>
+            </div>
+            <div class="col-6 col-sm-3">
+              <label for="stock_actual" class="form-label fw-semibold">¿Cuántos hay?</label>
+              <input type="number" id="stock_actual" name="stock_actual" value="5" min="0" class="form-control" required>
+            </div>
+            <div class="col-6 col-sm-3">
+              <label for="stock_minimo" class="form-label fw-semibold">Avisar con</label>
+              <input type="number" id="stock_minimo" name="stock_minimo" value="3" min="0" class="form-control" required>
+            </div>
+          </div>
+          <div class="form-text">"Avisar con" = cuando queden esa cantidad o menos, sale la alerta roja para comprar más.</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary fw-bold">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Diálogo nativo de confirmación para quitar un hilo o material -->
+{% if session.get('rol') == 'admin' %}
+<dialog id="dialog-quitar-insumo" aria-labelledby="dialog-insumo-title">
+  <h2 id="dialog-insumo-title" class="h5 fw-bold mb-2">¿Quitar del inventario?</h2>
+  <p class="text-muted small mb-4">
+    Vas a quitar <strong id="dialog-insumo-nombre"></strong> del inventario. Si es un hilo, ya no aparecerá en la lista de colores para el cliente.
+  </p>
+  <form id="form-quitar-insumo" method="POST" class="d-flex justify-content-end gap-2">
+    <button type="button" id="btn-cancelar-insumo" class="btn btn-outline-secondary" autofocus>Cancelar</button>
+    <button type="submit" class="btn btn-danger fw-bold">Sí, quitar</button>
+  </form>
+</dialog>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    // Confirmar con <dialog> nativo antes de quitar un hilo del inventario
+    const dialogInsumo = document.getElementById('dialog-quitar-insumo');
+    const formQuitar = document.getElementById('form-quitar-insumo');
+    const nombreQuitar = document.getElementById('dialog-insumo-nombre');
+    const btnCancelarInsumo = document.getElementById('btn-cancelar-insumo');
+
+    if (dialogInsumo && formQuitar) {
+      document.querySelectorAll('.btn-confirmar-quitar-insumo').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          formQuitar.action = btn.getAttribute('data-action');
+          nombreQuitar.textContent = btn.getAttribute('data-nombre');
+          dialogInsumo.showModal();
+        });
+      });
+
+      btnCancelarInsumo.addEventListener('click', function () {
+        dialogInsumo.close('cancel');
+      });
+
+      dialogInsumo.addEventListener('close', function () {
+        dialogInsumo.returnValue = '';
+      });
+    }
+
+    // Sugerir unidad, ejemplos y etiquetas según el tipo de hilo o material
+    const unidadSelect = document.getElementById('unidad');
+    const codigoHelp = document.getElementById('codigo-help');
+    const nombreLabel = document.getElementById('label-nombre-material');
+    const nombreHelp = document.getElementById('nombre-help');
+
+    const textosPorCategoria = {
+      Hilo: {
+        unidad: 'Conos',
+        codDesc: 'Si tiene código en su etiqueta escríbelo (ej: ',
+        codEj: 'HILO-4022',
+        codFin: '); si no tiene, puedes dejarlo vacío.',
+        nombreLabel: 'Nombre del color (visible para el cliente) *',
+        nombreHelp: 'Ej: "Verde Limón", "Azul Bebé", "Plateado".'
+      },
+      Interlon: {
+        unidad: 'Rollos',
+        codDesc: 'Si tiene referencia escríbelo (ej: ',
+        codEj: 'INT-003',
+        codFin: '); si no tiene código, déjalo vacío.',
+        nombreLabel: 'Nombre o descripción del interlón *',
+        nombreHelp: 'Ej: "Interlón Adhesivo Blanco", "Entretela Desprendible".'
+      },
+      Insumo: {
+        unidad: 'Unidades',
+        codDesc: 'Si tiene código escríbelo (ej: ',
+        codEj: 'INS-BOTON1',
+        codFin: '); si no tiene, puedes dejarlo vacío.',
+        nombreLabel: 'Nombre o descripción del material *',
+        nombreHelp: 'Ej: "Tinta DTF Blanca", "Tela Piqué Azul", "Agujas DBxK5".'
+      }
+    };
+
+    document.querySelectorAll('input[name="categoria"]').forEach(function (r) {
+      r.addEventListener('change', function () {
+        const cfg = textosPorCategoria[r.value] || textosPorCategoria.Insumo;
+        if (unidadSelect) unidadSelect.value = cfg.unidad;
+        if (nombreLabel) nombreLabel.textContent = cfg.nombreLabel;
+        if (nombreHelp) nombreHelp.textContent = cfg.nombreHelp;
+        if (codigoHelp) {
+          codigoHelp.textContent = '';
+          codigoHelp.appendChild(document.createTextNode(cfg.codDesc));
+          const codeEl = document.createElement('code');
+          codeEl.textContent = cfg.codEj;
+          codigoHelp.appendChild(codeEl);
+          codigoHelp.appendChild(document.createTextNode(cfg.codFin));
+        }
+      });
+    });
+  })();
+</script>
+{% endblock %}

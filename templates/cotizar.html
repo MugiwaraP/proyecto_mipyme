@@ -1,0 +1,582 @@
+{% extends "base.html" %}
+{% block title %}Enviar Idea y Cotizar — Sierra Diseños y Bordados{% endblock %}
+
+{% block extra_css %}
+<style>
+  .service-card-label {
+    display: block;
+    border: 2px solid #e2e8f0;
+    border-radius: 0.75rem;
+    padding: 0.9rem 1rem;
+    cursor: pointer;
+    background: #ffffff;
+    transition: all 0.15s ease;
+    height: 100%;
+  }
+
+  .service-radio:checked + .service-card-label {
+    border-color: #2563eb;
+    background-color: #eff6ff;
+  }
+
+  .service-radio:focus-visible + .service-card-label {
+    outline: 3px solid #2563eb;
+    outline-offset: 2px;
+  }
+
+  .color-btn {
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    background: #ffffff;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.85rem;
+    transition: all 0.12s ease;
+  }
+
+  .color-btn:hover {
+    background: #f1f5f9;
+  }
+
+  .color-btn.selected {
+    background: #0f172a;
+    color: #ffffff;
+    border-color: #0f172a;
+  }
+
+  .color-btn.agotado {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #64748b;
+    cursor: not-allowed;
+    opacity: 0.85;
+  }
+
+  .color-btn.agotado .color-name-text {
+    text-decoration: line-through;
+    text-decoration-color: #dc2626;
+    text-decoration-thickness: 2px;
+  }
+
+  .upload-dropzone {
+    border: 2px dashed #94a3b8;
+    border-radius: 0.75rem;
+    background: #f8fafc;
+    padding: 1.25rem;
+    text-align: center;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+  }
+
+  .upload-dropzone:hover {
+    border-color: #2563eb;
+    background: #eff6ff;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8">
+
+    <!-- Si el cliente acaba de enviar su pedido y boceto, mostrar el resumen y el botón directo a WhatsApp -->
+    {% if orden_creada and resumen_whatsapp_url %}
+    <div class="clean-card border-success border-2 p-4 mb-4 bg-success-subtle">
+      <div class="row align-items-center g-3">
+        {% if orden_creada.imagen_url %}
+        <div class="col-12 col-sm-4 text-center">
+          {% if orden_creada.imagen_url.lower().endswith('.pdf') %}
+            <a href="{{ orden_creada.imagen_url }}" target="_blank" rel="noopener" class="btn btn-outline-danger bg-white fw-semibold py-3 px-3 w-100">
+              <i class="bi bi-file-earmark-pdf-fill fs-2 d-block mb-1"></i>
+              Ver PDF subido
+            </a>
+          {% else %}
+            <img src="{{ orden_creada.imagen_url }}" alt="Boceto subido por el cliente" class="img-fluid rounded-3 border bg-white p-1" style="max-height: 140px;">
+            <div class="small text-muted mt-1">Tu imagen ya quedó guardada</div>
+          {% endif %}
+        </div>
+        {% endif %}
+        <div class="col-12 {% if orden_creada.imagen_url %}col-sm-8{% endif %}">
+          <h2 class="h5 fw-bold text-success-emphasis mb-1">
+            <i class="bi bi-check-circle-fill me-1"></i>¡Listo {{ orden_creada.nombre }}! Tu idea quedó guardada (Pedido #{{ orden_creada.id }})
+          </h2>
+          <p class="small text-dark mb-3">
+            Ya tenemos tu referencia y detalles en el sistema del taller. Ahora toca el botón verde para abrir el chat de <strong>WhatsApp</strong> con todo tu resumen listo y conversar directamente con el dueño:
+          </p>
+          <a href="{{ resumen_whatsapp_url }}" target="_blank" rel="noopener" class="btn btn-success btn-lg fw-bold w-100">
+            <i class="bi bi-whatsapp me-2"></i>Continuar en el Chat de WhatsApp con mi Boceto
+          </a>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Buscador sencillo por Cédula para clientes que ya dejaron un trabajo -->
+    <div class="clean-card p-3 p-md-4 mb-4">
+      <div class="row align-items-center g-2">
+        <div class="col-12 col-md-5">
+          <h2 id="tracker-heading" class="h6 fw-bold mb-0">
+            <i class="bi bi-search text-primary me-1"></i>¿Ya tienes un pedido en proceso?
+          </h2>
+          <span class="small text-muted" id="tracker-help">Consulta con tu Cédula o NIT cómo va (ej. 901234567-8):</span>
+        </div>
+        <div class="col-12 col-md-7">
+          <search>
+            <form id="form-rastrear-cedula" aria-labelledby="tracker-heading" class="d-flex gap-2">
+              <label for="input-rastrear-cedula" class="visually-hidden">Cédula o NIT</label>
+              <input
+                type="search"
+                id="input-rastrear-cedula"
+                class="form-control"
+                autocorrect="off"
+                autocapitalize="none"
+                spellcheck="false"
+                enterkeyhint="search"
+                aria-describedby="tracker-help"
+                required
+              >
+              <button type="submit" class="btn btn-outline-primary fw-semibold px-3 flex-shrink-0">Ver Estado</button>
+            </form>
+          </search>
+        </div>
+      </div>
+      <div id="tracker-result-box" class="mt-2" role="status" aria-live="polite"></div>
+    </div>
+
+    <!-- Formulario Principal para Enviar Idea / Boceto y Pasar a WhatsApp -->
+    <div class="clean-card p-4 p-md-5">
+      <div class="mb-4 pb-2 border-bottom">
+        <h1 id="cotizar-heading" class="h4 fw-bold mb-1">Arma tu Idea y Envíala a Nuestro WhatsApp</h1>
+        <p class="text-muted mb-0">
+          Elige qué necesitas, sube una foto o dibujo de lo que tienes en mente y pasamos directo al WhatsApp con tu idea clara para asesorarte sin demoras.
+        </p>
+      </div>
+
+      <form action="{{ url_for('portal_cotizacion') }}" method="POST" enctype="multipart/form-data" aria-labelledby="cotizar-heading">
+
+        <!-- PASO 1: Servicio y Prenda -->
+        <div class="mb-4">
+          <fieldset class="mb-3">
+            <legend class="h6 fw-bold mb-2">1. ¿Qué servicio buscas?</legend>
+            <div class="row g-2">
+              <div class="col-12 col-md-4">
+                <input class="visually-hidden service-radio" type="radio" name="tipo_servicio" id="cot-srv1" value="Solo Bordado" data-price="10000" checked>
+                <label class="service-card-label" for="cot-srv1">
+                  <div class="fw-bold">Solo Bordado</div>
+                  <div class="small text-muted">Tú traes las prendas y nosotros las bordamos.</div>
+                </label>
+              </div>
+              <div class="col-12 col-md-4">
+                <input class="visually-hidden service-radio" type="radio" name="tipo_servicio" id="cot-srv2" value="Solo Estampado" data-price="12000">
+                <label class="service-card-label" for="cot-srv2">
+                  <div class="fw-bold">Solo Estampado</div>
+                  <div class="small text-muted">Estampamos tu diseño sobre tus prendas.</div>
+                </label>
+              </div>
+              <div class="col-12 col-md-4">
+                <input class="visually-hidden service-radio" type="radio" name="tipo_servicio" id="cot-srv3" value="Confección + Bordado/Estampado" data-price="45000">
+                <label class="service-card-label" for="cot-srv3">
+                  <div class="fw-bold">Prenda + Bordado</div>
+                  <div class="small text-muted">Te hacemos la prenda completa desde cero.</div>
+                </label>
+              </div>
+            </div>
+          </fieldset>
+
+          <div class="row g-3">
+            <div class="col-12 col-md-5">
+              <label for="tipo_prenda" class="form-label fw-semibold mb-1">¿En qué prenda o artículo? *</label>
+              <select id="tipo_prenda" name="tipo_prenda" class="form-select">
+                <option value="Camisa tipo Polo">Camisa tipo Polo</option>
+                <option value="Camisa Empresarial (Oxford/Lino)">Camisa Empresarial (Manga larga/corta)</option>
+                <option value="Camiseta Básica o Deportiva">Camiseta Básica o Deportiva</option>
+                <option value="Gorra o Sombrero">Gorra o Sombrero</option>
+                <option value="Toalla, Delantal o Bata">Toalla, Delantal o Bata</option>
+                <option value="Escudos o Parches Sueltos">Escudos o Parches Sueltos</option>
+                <option value="Otra prenda / Por definir en WhatsApp">Otra prenda / Por definir en WhatsApp</option>
+              </select>
+            </div>
+            <div class="col-6 col-md-3">
+              <label for="cot-cantidad" class="form-label fw-semibold mb-1">Cantidad *</label>
+              <input type="number" id="cot-cantidad" name="cantidad" value="12" min="1" max="5000" class="form-control fw-bold" required>
+            </div>
+            <div class="col-6 col-md-4">
+              <label for="ubicacion_logo" class="form-label fw-semibold mb-1">¿Dónde va el diseño?</label>
+              <select id="ubicacion_logo" name="ubicacion_logo" class="form-select">
+                <option value="Pecho Izquierdo">Pecho Izquierdo</option>
+                <option value="Pecho + Espalda Grande">Pecho + Espalda Grande</option>
+                <option value="Solo Espalda">Solo Espalda</option>
+                <option value="Pecho Derecho">Pecho Derecho</option>
+                <option value="Manga o Cuello">Manga o Cuello</option>
+                <option value="Frente de Gorra">Frente de Gorra</option>
+                <option value="Otra ubicación / Definir por WhatsApp">Otra ubicación / Definir por WhatsApp</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- PASO 2: Subir Imagen de Referencia / Boceto y Elegir Colores -->
+        <div class="mb-4">
+          <h2 class="h6 fw-bold mb-2">2. Sube una imagen o referencia de tu idea y elige los colores</h2>
+
+          <!-- Subida de imagen o PDF con vista previa inmediata -->
+          <div class="upload-dropzone mb-3">
+            <label for="imagen_referencia" class="form-label fw-bold text-primary mb-1" style="cursor: pointer;">
+              <i class="bi bi-cloud-arrow-up-fill fs-4 d-block mb-1"></i>
+              Sube aquí tu logo, foto de ejemplo, dibujo a mano o PDF (Opcional)
+            </label>
+            <input
+              type="file"
+              id="imagen_referencia"
+              name="imagen_referencia"
+              accept="image/png,image/jpeg,image/webp,image/gif,application/pdf"
+              class="form-control form-control-sm mt-2"
+              aria-describedby="upload-help"
+            >
+            <div id="upload-help" class="small text-muted mt-1">
+              Acepta fotos (PNG, JPG, WEBP) o archivos PDF hasta 8 MB. El dueño la verá apenas le escribas.
+            </div>
+            <div id="preview-container" class="mt-3 d-none">
+              <img id="preview-img" src="" alt="Vista previa de tu boceto" class="img-thumbnail d-none" style="max-height: 160px;">
+              <div id="preview-pdf" class="badge bg-danger-subtle text-danger border border-danger p-2 d-none">
+                <i class="bi bi-file-earmark-pdf-fill me-1"></i><span id="preview-pdf-name"></span>
+              </div>
+              <div id="preview-error" class="small text-danger fw-semibold d-none"></div>
+            </div>
+          </div>
+
+          <!-- Paleta de Hilos del Taller -->
+          <div class="mb-3">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1">
+              <span class="form-label fw-semibold mb-0">
+                Colores de hilo en inventario ({{ insumos_hilos|selectattr('stock_actual', 'gt', 0)|list|length }} disponibles de {{ insumos_hilos|length }}):
+              </span>
+              <button type="button" id="btn-definir-chat" class="btn btn-outline-primary btn-sm py-1 px-2" data-hilo="[Usar colores según imagen adjunta / Definir por WhatsApp]">
+                <i class="bi bi-image me-1"></i>Usar colores de mi imagen / Definir por chat
+              </button>
+            </div>
+            <span class="small text-muted d-block mb-2">Toca uno o varios colores disponibles si quieres dejarlos anotados (los marcados como <span class="text-danger fw-semibold">Agotado</span> no se pueden elegir):</span>
+            <div class="d-flex flex-wrap gap-1 mb-3">
+              {% for h in insumos_hilos %}
+                {% if h.stock_actual > 0 %}
+                  <button type="button" class="color-btn btn-cot-hilo" data-hilo="{% if h.codigo_referencia %}[{{ h.codigo_referencia }} {{ h.nombre_color }}]{% else %}[Hilo: {{ h.nombre_color }}]{% endif %}">
+                    <span class="swatch-dot" style="background-color: {{ h.color_hex }};"></span>{{ h.nombre_color }}
+                  </button>
+                {% else %}
+                  <button type="button" class="color-btn agotado" disabled aria-disabled="true" title="Color temporalmente agotado en bodega">
+                    <span class="swatch-dot" style="background-color: {{ h.color_hex }}; opacity: 0.45;"></span><span class="color-name-text">{{ h.nombre_color }}</span>
+                    <span class="text-danger fw-bold ms-1" style="font-size: 0.72rem;">(Agotado)</span>
+                  </button>
+                {% endif %}
+              {% endfor %}
+            </div>
+
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-1 mb-1">
+              <label for="cot-detalle" class="form-label fw-semibold mb-0">
+                Explícanos con tus palabras qué quieres hacer *
+              </label>
+              <div class="d-flex flex-wrap gap-1">
+                <button type="button" class="btn btn-light border btn-sm py-0 px-2 small btn-idea-rapida" data-texto="Tengo el logo listo en la imagen adjunta. ">+ Logo adjunto</button>
+                <button type="button" class="btn btn-light border btn-sm py-0 px-2 small btn-idea-rapida" data-texto="Quiero bordar nombres y cargos personalizados. ">+ Nombres/Cargos</button>
+                <button type="button" class="btn btn-light border btn-sm py-0 px-2 small btn-idea-rapida" data-texto="Es una idea nueva basada en la referencia, quiero asesoría por WhatsApp. ">+ Quiero asesoría</button>
+              </div>
+            </div>
+            <textarea
+              id="cot-detalle"
+              name="detalle_diseno"
+              rows="3"
+              class="form-control"
+              required
+              aria-describedby="detalle-hint"
+            ></textarea>
+            <div id="detalle-hint" class="form-text">
+              Ej: "Quiero bordar el logo que subí en 12 camisas polo blancas (6 talla M y 6 talla L)".
+            </div>
+          </div>
+        </div>
+
+        <!-- PASO 3: Datos básicos para pasar a WhatsApp -->
+        <div class="mb-4">
+          <h2 class="h6 fw-bold mb-2">3. Tus datos para atenderte en WhatsApp</h2>
+          <div class="row g-3 mb-3">
+            <div class="col-12 col-md-4">
+              <label for="cot-cedula" class="form-label fw-semibold mb-1">Cédula o NIT *</label>
+              <input type="text" id="cot-cedula" name="cedula" class="form-control" autocorrect="off" autocapitalize="none" spellcheck="false" enterkeyhint="next" required>
+            </div>
+            <div class="col-12 col-md-4">
+              <label for="cot-nombre" class="form-label fw-semibold mb-1">Tu Nombre o Empresa *</label>
+              <input type="text" id="cot-nombre" name="nombre" class="form-control" autocomplete="name" enterkeyhint="next" required>
+            </div>
+            <div class="col-12 col-md-4">
+              <label for="cot-tel" class="form-label fw-semibold mb-1">Tu WhatsApp *</label>
+              <input type="tel" id="cot-tel" name="telefono" class="form-control" autocomplete="tel" inputmode="tel" enterkeyhint="next" required>
+            </div>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-12 col-md-6">
+              <fieldset>
+                <legend class="form-label fw-semibold mb-1 fs-6">¿Cómo entregas o recoges?</legend>
+                <div class="d-flex gap-3">
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="modalidad_entrega" id="cot-ent-local" value="Local" checked>
+                    <label class="form-check-label" for="cot-ent-local">En el local</label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="modalidad_entrega" id="cot-ent-dom" value="Correcaminos">
+                    <label class="form-check-label" for="cot-ent-dom">Domicilio (Correcaminos)</label>
+                  </div>
+                </div>
+              </fieldset>
+            </div>
+            <div class="col-12 col-md-6">
+              <fieldset>
+                <legend class="form-label fw-semibold mb-1 fs-6">Tipo de comprobante</legend>
+                <div class="d-flex gap-3">
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="soporte_fiscal" id="cot-fis1" value="Recibo de Caja" checked>
+                    <label class="form-check-label" for="cot-fis1">Recibo sencillo</label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="soporte_fiscal" id="cot-fis2" value="Factura Electrónica DIAN">
+                    <label class="form-check-label" for="cot-fis2">Factura Electrónica</label>
+                  </div>
+                </div>
+              </fieldset>
+            </div>
+          </div>
+
+          <!-- Dirección solo visible si el cliente elige Domicilio (Correcaminos) -->
+          <div id="campo-direccion-wrap" class="d-none">
+            <label for="cot-dir" class="form-label fw-semibold mb-1">Dirección de recogida / entrega en Santa Marta</label>
+            <input type="text" id="cot-dir" name="direccion" class="form-control" autocomplete="street-address" enterkeyhint="done">
+          </div>
+        </div>
+
+        <input type="hidden" name="acepta_ley1581" value="1">
+
+        <!-- Barra final con precio orientativo y botón a WhatsApp -->
+        <div class="p-3 rounded-3 bg-light border d-flex flex-wrap justify-content-between align-items-center gap-3">
+          <div>
+            <span class="small text-muted d-block">Precio base aproximado (se confirma en el chat según tu boceto):</span>
+            <strong class="fs-4 text-primary" id="sum-total">$102.000 COP</strong>
+            <span class="small text-muted ms-1" id="sum-unitario">($8.500 por prenda)</span>
+          </div>
+          <button type="submit" class="btn btn-success btn-lg fw-bold px-4">
+            <i class="bi bi-whatsapp me-2"></i>Guardar Boceto y Hablar por WhatsApp
+          </button>
+        </div>
+      </form>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    const radios = document.querySelectorAll('.service-radio');
+    const qtyInput = document.getElementById('cot-cantidad');
+    const detalleArea = document.getElementById('cot-detalle');
+    const sumUnitario = document.getElementById('sum-unitario');
+    const sumTotal = document.getElementById('sum-total');
+    const fileInput = document.getElementById('imagen_referencia');
+    const previewContainer = document.getElementById('preview-container');
+    const previewImg = document.getElementById('preview-img');
+    const previewPdf = document.getElementById('preview-pdf');
+    const previewPdfName = document.getElementById('preview-pdf-name');
+    const previewError = document.getElementById('preview-error');
+
+    function actualizarPrecio() {
+      let basePrice = 10000;
+      radios.forEach(function (r) {
+        if (r.checked) basePrice = parseInt(r.getAttribute('data-price') || '10000', 10);
+      });
+      const qty = Math.max(1, parseInt(qtyInput.value || '1', 10));
+      let dcto = 0;
+      if (qty >= 24) dcto = 0.25;
+      else if (qty >= 12) dcto = 0.15;
+      else if (qty >= 6) dcto = 0.10;
+
+      const unit = Math.round((basePrice * (1 - dcto)) / 100) * 100;
+      const total = unit * qty;
+      sumTotal.textContent = '$' + total.toLocaleString('es-CO') + ' COP';
+      sumUnitario.textContent = '($' + unit.toLocaleString('es-CO') + ' por prenda)';
+    }
+
+    radios.forEach(function (r) { r.addEventListener('change', actualizarPrecio); });
+    qtyInput.addEventListener('input', actualizarPrecio);
+
+    // Vista previa instantánea para imagen o PDF
+    if (fileInput) {
+      fileInput.addEventListener('change', function () {
+        const file = fileInput.files && fileInput.files[0];
+        previewImg.classList.add('d-none');
+        previewPdf.classList.add('d-none');
+        previewError.classList.add('d-none');
+
+        if (!file) {
+          previewContainer.classList.add('d-none');
+          return;
+        }
+
+        const nameLower = file.name.toLowerCase();
+        const isImg = /\.(png|jpe?g|webp|gif)$/.test(nameLower) || file.type.startsWith('image/');
+        const isPdf = nameLower.endsWith('.pdf') || file.type === 'application/pdf';
+
+        previewContainer.classList.remove('d-none');
+        if (file.size > 8 * 1024 * 1024) {
+          previewError.textContent = 'Este archivo pesa más de 8 MB. Elige una foto más liviana.';
+          previewError.classList.remove('d-none');
+          fileInput.value = '';
+          return;
+        }
+
+        if (isImg) {
+          const reader = new FileReader();
+          reader.onload = function (ev) {
+            previewImg.src = ev.target.result;
+            previewImg.classList.remove('d-none');
+          };
+          reader.readAsDataURL(file);
+        } else if (isPdf) {
+          previewPdfName.textContent = 'PDF listo: ' + file.name;
+          previewPdf.classList.remove('d-none');
+        } else {
+          previewError.textContent = 'Formato no válido. Sube una imagen (PNG, JPG, WEBP) o un PDF.';
+          previewError.classList.remove('d-none');
+          fileInput.value = '';
+        }
+      });
+    }
+
+    function toggleTextoEnDetalle(tag, activado) {
+      if (activado) {
+        if (!detalleArea.value.includes(tag)) {
+          detalleArea.value = (detalleArea.value.trim() + ' ' + tag).trim();
+        }
+      } else {
+        detalleArea.value = detalleArea.value.replace(tag, '').trim();
+      }
+    }
+
+    document.querySelectorAll('.btn-cot-hilo').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (btn.disabled) return;
+        btn.classList.toggle('selected');
+        toggleTextoEnDetalle(btn.getAttribute('data-hilo'), btn.classList.contains('selected'));
+      });
+    });
+
+    const btnChatColor = document.getElementById('btn-definir-chat');
+    if (btnChatColor) {
+      btnChatColor.addEventListener('click', function () {
+        const activo = btnChatColor.classList.toggle('btn-primary');
+        btnChatColor.classList.toggle('btn-outline-primary', !activo);
+        toggleTextoEnDetalle(btnChatColor.getAttribute('data-hilo'), activo);
+      });
+    }
+
+    document.querySelectorAll('.btn-idea-rapida').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const txt = btn.getAttribute('data-texto');
+        if (!detalleArea.value.includes(txt.trim())) {
+          detalleArea.value = (txt + detalleArea.value).trim();
+        }
+        detalleArea.focus();
+      });
+    });
+
+    // Mostrar dirección solo cuando eligen domicilio
+    const dirWrap = document.getElementById('campo-direccion-wrap');
+    document.querySelectorAll('input[name="modalidad_entrega"]').forEach(function (r) {
+      r.addEventListener('change', function () {
+        if (dirWrap) {
+          dirWrap.classList.toggle('d-none', r.value !== 'Correcaminos');
+        }
+      });
+    });
+
+    // Rastreador de pedido por cédula usando creación segura de nodos (sin innerHTML XSS)
+    const formTrack = document.getElementById('form-rastrear-cedula');
+    const inputTrack = document.getElementById('input-rastrear-cedula');
+    const boxTrack = document.getElementById('tracker-result-box');
+
+    function mostrarMensajeTracker(claseAlerta, nodos) {
+      boxTrack.textContent = '';
+      const div = document.createElement('div');
+      div.className = 'alert ' + claseAlerta + ' py-2 small mb-0';
+      nodos.forEach(function (n) { div.appendChild(n); });
+      boxTrack.appendChild(div);
+    }
+
+    if (formTrack) {
+      formTrack.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const ced = inputTrack.value.trim();
+        if (!ced) return;
+        try {
+          const res = await fetch('/api/clientes/' + encodeURIComponent(ced));
+          if (!res.ok) {
+            const strongCed = document.createElement('strong');
+            strongCed.textContent = ced;
+            mostrarMensajeTracker('alert-warning', [
+              document.createTextNode('No encontramos pedidos con la cédula o NIT '),
+              strongCed,
+              document.createTextNode('.')
+            ]);
+            return;
+          }
+          const data = await res.json();
+          const p = (data.historial_pedidos || [])[0];
+          if (!p) {
+            mostrarMensajeTracker('alert-info', [
+              document.createTextNode('Hola ' + (data.cliente.nombre || '') + ', no tienes pedidos activos en este momento.')
+            ]);
+            return;
+          }
+          const bCliente = document.createElement('strong');
+          bCliente.textContent = 'Cliente: ';
+          const bPedido = document.createElement('strong');
+          bPedido.textContent = 'Pedido #' + p.id + ': ';
+          const bEstado = document.createElement('strong');
+          bEstado.textContent = 'Estado: ';
+          const badge = document.createElement('span');
+          badge.className = 'badge bg-dark me-2';
+          badge.textContent = p.estado;
+
+          const nodes = [
+            bCliente,
+            document.createTextNode(data.cliente.nombre + ' — '),
+            bPedido,
+            document.createTextNode(p.cantidad + ' prendas (' + p.tipo_servicio + ') — '),
+            bEstado,
+            badge
+          ];
+
+          if (p.descripcion_y_hilos) {
+            const detalleDiv = document.createElement('div');
+            detalleDiv.className = 'mt-1 pt-1 border-top';
+            const lblDet = document.createElement('strong');
+            lblDet.textContent = 'Trabajo registrado: ';
+            detalleDiv.appendChild(lblDet);
+            detalleDiv.appendChild(document.createTextNode(p.descripcion_y_hilos));
+            if (p.acuerdo_whatsapp) {
+              const br = document.createElement('br');
+              const lblAcuerdo = document.createElement('strong');
+              lblAcuerdo.textContent = 'Acuerdo confirmado: ';
+              detalleDiv.appendChild(br);
+              detalleDiv.appendChild(lblAcuerdo);
+              detalleDiv.appendChild(document.createTextNode(p.acuerdo_whatsapp));
+            }
+            nodes.push(detalleDiv);
+          }
+
+          mostrarMensajeTracker('alert-success', nodes);
+        } catch (err) {}
+      });
+    }
+
+    actualizarPrecio();
+  })();
+</script>
+{% endblock %}
